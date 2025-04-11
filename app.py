@@ -124,8 +124,7 @@ if st.button("Gerar devolutiva"):
             link = row.get("Fonte", "#")
             
             resumo_raw = str(row.get("Resumo", "Sem resumo disponível"))
-            resumo_limpo = re.sub(r"<[^>]+>", "", resumo_raw).strip()
-            resumo_curto = " ".join(resumo_limpo.split()[:80]) + ("..." if len(resumo_limpo.split()) > 80 else "")
+            resumo = re.sub(r"<[^>]+>", "", resumo_raw).strip()
             
             suporte = row.get("Suporte", "Não informado")
             dimensao = row.get("Dimensões", "Não informado")
@@ -135,7 +134,7 @@ if st.button("Gerar devolutiva"):
             st.markdown(f"""
 **{i+1}. [{titulo}]({link})**
 
-📝 **Resumo:** {resumo_curto}  
+📝 **Resumo:** {resumo}  
 📎 **Tipo:** {suporte} | **Dimensão:** {dimensao}  
 ⏱️ **Duração:** {duracao}  
 📏 **Similaridade:** {similaridade}  
