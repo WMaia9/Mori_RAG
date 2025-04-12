@@ -5,21 +5,16 @@ import faiss
 import pickle
 import re
 from sentence_transformers import SentenceTransformer
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
 
-# === Configuração inicial ===
+# === 0. CONFIG ===
 st.set_page_config(page_title="Geração de Devolutivas", layout="wide")
-st.title("📘 Geração de Devolutivas e Materiais Relacionados")
 
-# === Escolha do modelo ===
-modelo_selecionado = st.radio(
-    "Escolha o modelo de embeddings:",
-    options=["MiniLM (L2)", "Stella v1.5 (Cosseno)"],
-    index=0
-)
+# === 1. MODELO ===
+modelo_selecionado = st.sidebar.selectbox("Escolha o modelo de similaridade:", [
+    "MiniLM (L2)",
+    "Stella v1.5 (Cosseno)"
+])
 
-# Escolha de arquivos com base no modelo
 if modelo_selecionado == "MiniLM (L2)":
     with open("data/odas/metadados_odas.pkl", "rb") as f:
         df_odas = pickle.load(f)
@@ -33,20 +28,40 @@ else:
     modelo = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
     usar_cosseno = True
 
-# === Carregar devolutivas ===
+# === 2. Limpeza e categorização da duração ===
+def limpar_descricao_antiga(texto):
+    texto_limpo = re.sub(r"[📚🎥🧑‍🏫📘📄🎬⏱️]+", "", texto)
+    texto_limpo = re.sub(r"\(.*?\)", "", texto_limpo)
+    return texto_limpo.strip()
+
+def interpretar_duracao(duracao):
+    if pd.isna(duracao) or duracao.strip().lower() in ['s/d', '']:
+        return "⏱️ Duração não informada"
+    texto = limpar_descricao_antiga(str(duracao).lower())
+
+    if any(p in texto for p in ["hora", "min", ":"]):
+        minutos = sum([int(x) * t for x, t in zip(re.findall(r"\d+", texto), [60, 1, 1])])
+        if minutos <= 5:
+            return f"🎥 {texto} (vídeo curto)"
+        elif minutos <= 20:
+            return f"🎬 {texto} (vídeo médio)"
+        else:
+            return f"🧑‍🏫 {texto} (vídeo longo)"
+    elif "página" in texto or texto.isdigit():
+        paginas = int(re.findall(r"\d+", texto)[0])
+        if paginas <= 3:
+            return f"📄 {texto} (texto curto)"
+        elif paginas <= 20:
+            return f"📘 {texto} (texto médio)"
+        else:
+            return f"📚 {texto} (texto longo)"
+    return f"⏱️ {texto}"
+
+df_odas["Descricao_duracao"] = df_odas["Descricao_duracao"].apply(interpretar_duracao)
+
+# === 3. Carregar devolutivas ===
 df_devolutivas = pd.read_csv("data/devolutivas_padronizadas.csv", sep=";")
 
-# Corrigir coluna de duração
-def classificar_duracao(valor):
-    if pd.isna(valor):
-        return "⏱️ Duração não informada"
-    texto = str(valor)
-    texto_limpo = re.sub(r"[📚🎥🧑‍🏫📘📄🎬🎞️⏱️]+", "", texto).strip()
-    return f"{texto_limpo}"
-
-df_odas["Descricao_duracao"] = df_odas["Descricao_duracao"].apply(classificar_duracao)
-
-# === Funções auxiliares ===
 def pontuacao_para_rubrica_nivel(pontuacao):
     if 0 <= pontuacao <= 4:
         return "Rubrica 1 - Sensibilização", "Consolidar"
@@ -68,14 +83,17 @@ def gerar_devolutiva(pontuacao, dimensao, subdimensao):
     rubrica, nivel = pontuacao_para_rubrica_nivel(pontuacao)
     if not rubrica:
         return "❌ Pontuação fora da faixa válida.", ""
+
     resultado = df_devolutivas[
         (df_devolutivas["dimensao"] == dimensao)
         & (df_devolutivas["subdimensao"] == subdimensao)
         & (df_devolutivas["rubrica"] == rubrica)
         & (df_devolutivas["nivel"] == nivel)
     ]
+
     if resultado.empty:
         return f"❌ Não foi encontrada a devolutiva para {rubrica} - {nivel}.", ""
+
     item = resultado.iloc[0]
     texto = f"""
 🔢 **Pontuação:** {pontuacao}  
@@ -101,17 +119,20 @@ def gerar_devolutiva(pontuacao, dimensao, subdimensao):
 """
     return "", texto.strip()
 
+# === 4. Embedding e busca ===
 def gerar_embedding_para_rag(texto):
     if "**Necessidades formativas:**" in texto:
         trecho = texto.split("**Necessidades formativas:**")[-1].strip()
     else:
         trecho = texto
-    embedding = modelo.encode([trecho])
+    emb = modelo.encode([trecho])
     if usar_cosseno:
-        embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
-    return embedding
+        emb = emb / np.linalg.norm(emb, axis=1, keepdims=True)
+    return emb
 
-# === Interface principal ===
+# === 5. Interface ===
+st.title("📘 Geração de Devolutivas e Materiais Relacionados")
+
 dimensao = st.selectbox("Escolha a dimensão:", sorted(df_devolutivas["dimensao"].unique()))
 subdimensoes = df_devolutivas[df_devolutivas["dimensao"] == dimensao]["subdimensao"].unique()
 subdimensao = st.selectbox(
@@ -135,29 +156,26 @@ if st.button("Gerar devolutiva"):
         resultados = df_odas.iloc[indices[0]].copy()
         resultados["distância"] = distancias[0]
 
-        st.markdown(f"### 📚 **Materiais recomendados com base na sua devolutiva (TOP {top}):**")
+        st.markdown(f"### 📚 **Materiais recomendados com base na sua devolutiva {top}:**")
         for i, row in resultados.iterrows():
             titulo = row.get("Título", "Sem título")
             link = row.get("Fonte", "#")
-            resumo_raw = str(row.get("Resumo", "Sem resumo disponível"))
-            resumo = re.sub(r"<[^>]+>", "", resumo_raw).strip()
+            resumo = re.sub(r"<[^>]+>", "", str(row.get("Resumo", "Sem resumo disponível")).strip())
             suporte = row.get("Suporte", "Não informado")
-            dim = row.get("Dimensões", "Não informado")
+            dimensao = row.get("Dimensões", "Não informado")
             duracao = row.get("Descricao_duracao", "⏱️ Duração não informada")
             similaridade = row["distância"]
 
-            if usar_cosseno:
-                metrica = f"📏 **Similaridade (Cosseno):** {similaridade:.4f}"
-            else:
-                metrica = f"📏 **Distância L2:** {similaridade:.4f}"
+            tipo_metric = "Cosseno" if usar_cosseno else "L2"
+            sim_texto = f"📏 **Similaridade ({tipo_metric}):** {similaridade:.4f}"
 
             st.markdown(f"""
 **{i+1}. [{titulo}]({link})**
 
 📝 **Resumo:** {resumo}  
-📎 **Tipo:** {suporte} | **Dimensão:** {dim}  
+📎 **Tipo:** {suporte} | **Dimensão:** {dimensao}  
 ⏱️ **Duração:** {duracao}  
-{metrica}
+{sim_texto}
 
 ---
 """)
