@@ -156,7 +156,7 @@ if st.button("Gerar devolutiva"):
         resultados = df_odas.iloc[indices[0]].copy()
         resultados["distância"] = distancias[0]
 
-        st.markdown(f"### 📚 **Materiais recomendados com base na sua devolutiva {top}:**")
+        st.markdown(f"### 📚 **Materiais recomendados com base na sua devolutiva TOP {top}:**")
         for i, row in resultados.iterrows():
             titulo = row.get("Título", "Sem título")
             link = row.get("Fonte", "#")
