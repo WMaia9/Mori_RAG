@@ -120,7 +120,7 @@ if st.button("Gerar devolutiva"):
         # Mostrar resultados
         st.markdown("### 📚 **Materiais recomendados com base na sua devolutiva (TOP 10):**")
         for i, row in resultados.iterrows():
-            titulo = row.get("Link fixo", "Sem título")
+            titulo = row.get("Título", "Sem título")
             link = row.get("Fonte", "#")
             
             resumo_raw = str(row.get("Resumo", "Sem resumo disponível"))
