@@ -40,7 +40,15 @@ def interpretar_duracao(duracao):
     texto = limpar_descricao_antiga(str(duracao).lower())
 
     if any(p in texto for p in ["hora", "min", ":"]):
-        minutos = sum([int(x) * t for x, t in zip(re.findall(r"\d+", texto), [60, 1, 1])])
+        numeros = [int(x) for x in re.findall(r"\d+", texto)]
+        minutos = 0
+        if len(numeros) == 1:
+            minutos = numeros[0]
+        elif len(numeros) == 2:
+            minutos = numeros[0] * 60 + numeros[1]
+        elif len(numeros) >= 3:
+            minutos = numeros[0] * 60 + numeros[1] + numeros[2] // 60
+
         if minutos <= 5:
             return f"🎥 {texto} (vídeo curto)"
         elif minutos <= 20:
@@ -142,6 +150,7 @@ subdimensao = st.selectbox(
 )
 pontuacao = st.slider("Pontuação:", 0, 45, 17)
 
+# Botão de execução
 if st.button("Gerar devolutiva"):
     erro, texto_devolutiva = gerar_devolutiva(pontuacao, dimensao, subdimensao)
     if erro:
@@ -156,26 +165,24 @@ if st.button("Gerar devolutiva"):
         resultados = df_odas.iloc[indices[0]].copy()
         resultados["distância"] = distancias[0]
 
+        tipo_metric = "Cosseno" if usar_cosseno else "L2"
         st.markdown(f"### 📚 **Materiais recomendados com base na sua devolutiva TOP {top}:**")
         for i, row in resultados.iterrows():
             titulo = row.get("Título", "Sem título")
             link = row.get("Fonte", "#")
             resumo = re.sub(r"<[^>]+>", "", str(row.get("Resumo", "Sem resumo disponível")).strip())
             suporte = row.get("Suporte", "Não informado")
-            dimensao = row.get("Dimensões", "Não informado")
+            dim = row.get("Dimensões", "Não informado")
             duracao = row.get("Descricao_duracao", "⏱️ Duração não informada")
             similaridade = row["distância"]
-
-            tipo_metric = "Cosseno" if usar_cosseno else "L2"
-            sim_texto = f"📏 **Similaridade ({tipo_metric}):** {similaridade:.4f}"
 
             st.markdown(f"""
 **{i+1}. [{titulo}]({link})**
 
 📝 **Resumo:** {resumo}  
-📎 **Tipo:** {suporte} | **Dimensão:** {dimensao}  
+📎 **Tipo:** {suporte} | **Dimensão:** {dim}  
 ⏱️ **Duração:** {duracao}  
-{sim_texto}
+📏 **Similaridade ({tipo_metric}):** {similaridade:.4f}  
 
 ---
 """)
