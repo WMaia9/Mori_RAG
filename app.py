@@ -9,26 +9,45 @@ from sentence_transformers import SentenceTransformer
 # === 0. CONFIG ===
 st.set_page_config(page_title="Geração de Devolutivas", layout="wide")
 
-# === 1. MODELO ===
+# === 1. FUNÇÕES DE CACHE ===
+@st.cache_resource
+def carregar_modelo(nome_modelo: str, usar_cosseno: bool):
+    if nome_modelo == "MiniLM (L2)":
+        return SentenceTransformer("all-MiniLM-L6-v2")
+    else:
+        return SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+
+@st.cache_resource
+def carregar_index(caminho: str):
+    return faiss.read_index(caminho)
+
+@st.cache_data
+def carregar_metadados(caminho: str):
+    with open(caminho, "rb") as f:
+        return pickle.load(f)
+
+@st.cache_data
+def carregar_devolutivas():
+    return pd.read_csv("data/devolutivas_padronizadas.csv", sep=";")
+
+# === 2. SELEÇÃO DE MODELO ===
 modelo_selecionado = st.sidebar.selectbox("Escolha o modelo de similaridade:", [
     "MiniLM (L2)",
     "Stella v1.5 (Cosseno)"
 ])
 
 if modelo_selecionado == "MiniLM (L2)":
-    with open("data/odas/metadados_odas.pkl", "rb") as f:
-        df_odas = pickle.load(f)
-    index = faiss.read_index("data/odas/odas_index.faiss")
-    modelo = SentenceTransformer("all-MiniLM-L6-v2")
+    df_odas = carregar_metadados("data/odas/metadados_odas.pkl")
+    index = carregar_index("data/odas/odas_index.faiss")
+    modelo = carregar_modelo("MiniLM (L2)", usar_cosseno=False)
     usar_cosseno = False
 else:
-    with open("data/odas/metadados_odas_stellav5.pkl", "rb") as f:
-        df_odas = pickle.load(f)
-    index = faiss.read_index("data/odas/odas_index_stellav5.faiss")
-    modelo = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+    df_odas = carregar_metadados("data/odas/metadados_odas_stellav5.pkl")
+    index = carregar_index("data/odas/odas_index_stellav5.faiss")
+    modelo = carregar_modelo("Stella v1.5", usar_cosseno=True)
     usar_cosseno = True
 
-# === 2. Limpeza e categorização da duração ===
+# === 3. TRATAMENTO DE DURAÇÃO ===
 def limpar_descricao_antiga(texto):
     texto_limpo = re.sub(r"[📚🎥🧑‍🏫📘📄🎬⏱️]+", "", texto)
     texto_limpo = re.sub(r"\(.*?\)", "", texto_limpo)
@@ -67,8 +86,8 @@ def interpretar_duracao(duracao):
 
 df_odas["Descricao_duracao"] = df_odas["Descricao_duracao"].apply(interpretar_duracao)
 
-# === 3. Carregar devolutivas ===
-df_devolutivas = pd.read_csv("data/devolutivas_padronizadas.csv", sep=";")
+# === 4. DEVOLUTIVA ===
+df_devolutivas = carregar_devolutivas()
 
 def pontuacao_para_rubrica_nivel(pontuacao):
     if 0 <= pontuacao <= 4:
@@ -127,7 +146,7 @@ def gerar_devolutiva(pontuacao, dimensao, subdimensao):
 """
     return "", texto.strip()
 
-# === 4. Embedding e busca ===
+# === 5. EMBEDDING ===
 def gerar_embedding_para_rag(texto):
     if "**Necessidades formativas:**" in texto:
         trecho = texto.split("**Necessidades formativas:**")[-1].strip()
@@ -138,7 +157,7 @@ def gerar_embedding_para_rag(texto):
         emb = emb / np.linalg.norm(emb, axis=1, keepdims=True)
     return emb
 
-# === 5. Interface ===
+# === 6. INTERFACE ===
 st.title("📘 Geração de Devolutivas e Materiais Relacionados")
 
 dimensao = st.selectbox("Escolha a dimensão:", sorted(df_devolutivas["dimensao"].unique()))
@@ -150,7 +169,6 @@ subdimensao = st.selectbox(
 )
 pontuacao = st.slider("Pontuação:", 0, 45, 17)
 
-# Botão de execução
 if st.button("Gerar devolutiva"):
     erro, texto_devolutiva = gerar_devolutiva(pontuacao, dimensao, subdimensao)
     if erro:
@@ -166,7 +184,7 @@ if st.button("Gerar devolutiva"):
         resultados["distância"] = distancias[0]
 
         tipo_metric = "Cosseno" if usar_cosseno else "L2"
-        st.markdown(f"### 📚 **Materiais recomendados com base na sua devolutiva TOP {top}:**")
+        st.markdown(f"### 📚 **Materiais recomendados com base na sua devolutiva (TOP {top}):**")
         for i, row in resultados.iterrows():
             titulo = row.get("Título", "Sem título")
             link = row.get("Fonte", "#")
