@@ -1,3 +1,4 @@
+# === 1. IMPORTAÇÕES ===
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -28,9 +29,13 @@ def carregar_metadados(caminho: str):
 
 @st.cache_data
 def carregar_devolutivas():
-    return pd.read_csv("data/devolutivas_padronizadas.csv", sep=";")
+    return pd.read_csv("data/Devolutivas.csv", sep=";")
 
-# === 2. SELEÇÃO DE MODELO ===
+@st.cache_data
+def carregar_rubricas():
+    return pd.read_csv("data/Rubricas.csv", sep=";")
+
+# === 2. CARREGAMENTO ===
 modelo_selecionado = st.sidebar.selectbox("Escolha o modelo de similaridade:", [
     "MiniLM (L2)",
     "Stella v1.5 (Cosseno)"
@@ -47,10 +52,16 @@ else:
     modelo = carregar_modelo("Stella v1.5", usar_cosseno=True)
     usar_cosseno = True
 
+# Carregar devolutivas e rubricas novos
+df_devolutivas = carregar_devolutivas().rename(columns={
+    "Necessidaes formativas": "Necessidades formativas"
+})
+df_rubricas = carregar_rubricas()
+
 # === 3. TRATAMENTO DE DURAÇÃO ===
 def limpar_descricao_antiga(texto):
     texto_limpo = re.sub(r"[📚🎥🧑‍🏫📘📄🎬⏱️]+", "", texto)
-    texto_limpo = re.sub(r"\(.*?\)", "", texto_limpo)
+    texto_limpo = re.sub(r"\(.*?\)", "", texto)
     return texto_limpo.strip()
 
 def interpretar_duracao(duracao):
@@ -86,65 +97,78 @@ def interpretar_duracao(duracao):
 
 df_odas["Descricao_duracao"] = df_odas["Descricao_duracao"].apply(interpretar_duracao)
 
-# === 4. DEVOLUTIVA ===
-df_devolutivas = carregar_devolutivas()
+# === 4. DEVOLUTIVA (com Rubricas novas) ===
 
-def pontuacao_para_rubrica_nivel(pontuacao):
-    if 0 <= pontuacao <= 4:
-        return "Rubrica 1 - Sensibilização", "Consolidar"
-    elif 5 <= pontuacao <= 9:
-        return "Rubrica 1 - Sensibilização", "Avançar"
-    elif 10 <= pontuacao <= 16:
-        return "Rubrica 2 - Exploração", "Consolidar"
-    elif 17 <= pontuacao <= 21:
-        return "Rubrica 2 - Exploração", "Avançar"
-    elif 22 <= pontuacao <= 29:
-        return "Rubrica 3 - Liderança estratégica", "Consolidar"
-    elif 30 <= pontuacao <= 36:
-        return "Rubrica 3 - Liderança estratégica", "Avançar"
-    elif 37 <= pontuacao <= 45:
-        return "Rubrica 4 - Transformação cultural", "Consolidar"
-    return None, None
+def encontrar_rubrica(pontuacao, dimensao, subdimensao):
+    candidatos = df_rubricas[
+        (df_rubricas["dimensao"] == dimensao) &
+        (df_rubricas["subdimensao"] == subdimensao) &
+        (df_rubricas["faixa_total_min"] <= pontuacao) &
+        (df_rubricas["faixa_total_max"] >= pontuacao)
+    ]
+    if candidatos.empty:
+        return None, None, None
 
-def gerar_devolutiva(pontuacao, dimensao, subdimensao):
-    rubrica, nivel = pontuacao_para_rubrica_nivel(pontuacao)
-    if not rubrica:
-        return "❌ Pontuação fora da faixa válida.", ""
+    rubrica_numero = candidatos.iloc[0]["rubrica_numero"]
+    rubrica_nome = candidatos.iloc[0]["rubrica_nome"]
 
-    resultado = df_devolutivas[
-        (df_devolutivas["dimensao"] == dimensao)
-        & (df_devolutivas["subdimensao"] == subdimensao)
-        & (df_devolutivas["rubrica"] == rubrica)
-        & (df_devolutivas["nivel"] == nivel)
+    faixa_escolhida = candidatos[
+        (candidatos["subfaixa_min"] <= pontuacao) &
+        (candidatos["subfaixa_max"] >= pontuacao)
+    ]
+    if faixa_escolhida.empty:
+        return rubrica_numero, rubrica_nome, None
+
+    tipo_faixa = faixa_escolhida.iloc[0]["tipo_faixa"]
+    return rubrica_numero, rubrica_nome, tipo_faixa
+
+def gerar_devolutiva_markdown(pontuacao, dimensao, subdimensao):
+    rubrica_numero, rubrica_nome, tipo_faixa = encontrar_rubrica(pontuacao, dimensao, subdimensao)
+
+    if not rubrica_numero or not tipo_faixa:
+        return "❌ Pontuação fora da faixa válida."
+
+    rubrica_nome_completo = f"{rubrica_nome} – Nível {tipo_faixa}"
+
+    devolutiva = df_devolutivas[
+        (df_devolutivas["Dimensão"] == dimensao) &
+        (df_devolutivas["Subdimensão"] == subdimensao) &
+        (df_devolutivas["Rubrica numero"] == rubrica_numero) &
+        (df_devolutivas["Rubrica nome"] == rubrica_nome_completo)
     ]
 
-    if resultado.empty:
-        return f"❌ Não foi encontrada a devolutiva para {rubrica} - {nivel}.", ""
+    if devolutiva.empty:
+        return f"❌ Não foi encontrada devolutiva para Rubrica {rubrica_numero} - {rubrica_nome_completo}."
 
-    item = resultado.iloc[0]
-    texto = f"""
+    item = devolutiva.iloc[0]
+
+    return f"""
+## 📄 **Devolutiva personalizada:**
+
 🔢 **Pontuação:** {pontuacao}  
 📂 **Dimensão:** {dimensao}  
 📁 **Subdimensão:** {subdimensao}  
-🏷️ **Rubrica:** {rubrica}  
-📊 **Nível:** {nivel}  
+🏷️ **Rubrica:** Rubrica {rubrica_numero} - {rubrica_nome}  
+📊 **Nível:** {tipo_faixa}
 
 ---
 
-✅ **Seus pontos fortes:**  
-{item['pontos_fortes']}
+✅ **Seus pontos fortes:**
+
+{item['Pontos fortes']}
 
 ---
 
-📈 **O que fazer para avançar:**  
-{item['avancar']}
+📈 **O que fazer para avançar:**
+
+{item['O que fazer para avançar']}
 
 ---
 
-📚 **Necessidades formativas:**  
-{item['formativas']}
-"""
-    return "", texto.strip()
+📚 **Necessidades formativas:**
+
+{item['Necessidades formativas']}
+""".strip()
 
 # === 5. EMBEDDING ===
 def gerar_embedding_para_rag(texto):
@@ -157,24 +181,23 @@ def gerar_embedding_para_rag(texto):
         emb = emb / np.linalg.norm(emb, axis=1, keepdims=True)
     return emb
 
-# === 6. INTERFACE ===
+# === 6. INTERFACE FINAL ===
 st.title("📘 Geração de Devolutivas e Materiais Relacionados")
 
-dimensao = st.selectbox("Escolha a dimensão:", sorted(df_devolutivas["dimensao"].unique()))
-subdimensoes = df_devolutivas[df_devolutivas["dimensao"] == dimensao]["subdimensao"].unique()
+dimensao = st.selectbox("Escolha a dimensão:", sorted(df_devolutivas["Dimensão"].unique()))
+subdimensoes = df_devolutivas[df_devolutivas["Dimensão"] == dimensao]["Subdimensão"].unique()
 subdimensao = st.selectbox(
     "Escolha a subdimensão:",
     options=sorted(subdimensoes),
-    index=sorted(subdimensoes).index("planejamento") if "planejamento" in subdimensoes else 0
+    index=0
 )
-pontuacao = st.slider("Pontuação:", 0, 45, 17)
+pontuacao = st.slider("Pontuação:", 0, 51, 17)
 
 if st.button("Gerar devolutiva"):
-    erro, texto_devolutiva = gerar_devolutiva(pontuacao, dimensao, subdimensao)
-    if erro:
-        st.warning(erro)
+    texto_devolutiva = gerar_devolutiva_markdown(pontuacao, dimensao, subdimensao)
+    if "❌" in texto_devolutiva:
+        st.warning(texto_devolutiva)
     else:
-        st.markdown("### 📄 **Devolutiva personalizada:**")
         st.markdown(texto_devolutiva)
 
         embedding = gerar_embedding_para_rag(texto_devolutiva)
