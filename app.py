@@ -254,52 +254,36 @@ if modo == "Individual":
 
             st.markdown(markdown)
 elif modo == "Geral":
-    st.markdown("### Informe as pontuações por subdimensão da Dimensão Pedagógica")
-    subdimensoes_pedagogicas = df_rubricas[df_rubricas['dimensao'] == 'Dimensão pedagógica']['subdimensao'].unique()
-    pontuacoes_pedagogicas = {}
-    for sub in sorted(subdimensoes_pedagogicas):
-        max_ponto = obter_pontuacao_maxima("Dimensão pedagógica", sub)
-        pontuacoes_pedagogicas[sub] = st.slider(f"{sub} (Pedagógica)", 0, max_ponto, 0)
+    st.markdown("### Escolha a dimensão que deseja gerar a devolutiva geral:")
+    dimensao_escolhida = st.selectbox("Dimensão:", ["Planejamento pedagógico", "Pessoal-relacional"])
 
-    st.markdown("### Informe a pontuação da Dimensão Pessoal-Relacional")
-    subdimensoes_pessoais = df_rubricas[df_rubricas['dimensao'] == 'Dimensão pessoal-relacional']['subdimensao'].unique()
-    pontuacoes_pessoais = {}
-    for sub in sorted(subdimensoes_pessoais):
-        max_ponto = obter_pontuacao_maxima("Dimensão pessoal-relacional", sub)
-        pontuacoes_pessoais[sub] = st.slider(f"{sub} (Pessoal-Relacional)", 0, max_ponto, 0)
+    if dimensao_escolhida == "Planejamento pedagógico":
+        st.markdown("#### Informe as pontuações das subdimensões pedagógicas:")
+        subdimensoes = [
+            "Desenvolvimento profissional docente",
+            "Implementação do processo de ensino e aprendizagem",
+            "Monitoramento e Avaliação da Aprendizagem",
+            "Planejamento pedagógico",
+            "Proteção das Trajetórias Estudantis"
+        ]
+        pontuacoes = {}
+        for sub in subdimensoes:
+            max_ponto = obter_pontuacao_maxima("Dimensão pedagógica", sub)
+            pontuacoes[sub] = st.slider(f"{sub}", 0, max_ponto, 0)
 
-    openai_api_key = st.text_input("Insira sua OpenAI API Key", type="password")
+        openai_api_key = st.text_input("Insira sua OpenAI API Key", type="password")
 
-    if st.button("Gerar devolutiva geral") and openai_api_key:
-        partes_pedagogicas = []
-        for sub, ponto in pontuacoes_pedagogicas.items():
-            texto = gerar_texto_devolutiva_rico(ponto, "Dimensão pedagógica", sub)
-            if texto:
-                partes_pedagogicas.append(f"Subdimensão {sub}:\n{texto}")
+        if st.button("Gerar devolutiva da dimensão pedagógica") and openai_api_key:
+            partes = []
+            for sub, ponto in pontuacoes.items():
+                texto = gerar_texto_devolutiva_rico(ponto, "Dimensão pedagógica", sub)
+                if texto:
+                    partes.append(f"Subdimensão {sub}:\n{texto}")
 
-        partes_pessoais = []
-        for sub, ponto in pontuacoes_pessoais.items():
-            texto = gerar_texto_devolutiva_rico(ponto, "Dimensão pessoal-relacional", sub)
-            if texto:
-                partes_pessoais.append(f"Subdimensão {sub}:\n{texto}")
-
-        if not partes_pedagogicas and not partes_pessoais:
-            st.warning("⚠️ Nenhuma pontuação informada.")
-        else:
-            # Escolher o prompt correto
-            if partes_pedagogicas and partes_pessoais:
-                prompt_inicial = """
-Você é um assistente especializado em gestão escolar. Seu objetivo é receber as devolutivas textuais de todas as subdimensões nas duas dimensões avaliadas e gerar um texto síntese único que ajude o gestor a compreender seu estágio atual e o próximo passo mais urgente.
-
-Tarefa:
-- Sintetizar os principais pontos fortes gerais que emergem das duas dimensões.
-- Apontar as ações concretas que o gestor deve implementar para avançar no “Planejamento pedagógico” e na “Convivência no ambiente escolar”.
-- Destacar o próximo passo mais urgente que integrará as dimensões.
-- Limite: até 3 parágrafos.
-- Tom: claro, direto, orientado a “próximos passos”.
-"""
-            elif partes_pedagogicas:
-                prompt_inicial = """
+            if not partes:
+                st.warning("⚠️ Nenhuma pontuação informada.")
+            else:
+                prompt = f"""
 Você é um assistente especializado em gestão escolar. Seu objetivo é receber as devolutivas textuais de cada subdimensão e gerar um texto síntese único para a dimensão “Planejamento pedagógico”.
 
 Tarefa:
@@ -307,9 +291,42 @@ Tarefa:
 - Apontar as ações concretas que o gestor deve implementar para avançar ao próximo nível de maturidade (conforme rubricas).
 - Limite: até 3 parágrafos.
 - Tom: claro, direto, orientado a “próximos passos”.
+
+{chr(10).join(partes)}
 """
+                try:
+                    from openai import OpenAI
+                    client = OpenAI(api_key=openai_api_key)
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "Você é um especialista em formação de professores."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.7,
+                        max_tokens=1500
+                    )
+                    resposta = response.choices[0].message.content
+                    st.markdown("### 📖 Devolutiva da Dimensão Pedagógica")
+                    st.markdown(resposta)
+                except Exception as e:
+                    st.error(f"Erro ao gerar devolutiva: {str(e)}")
+
+    elif dimensao_escolhida == "Pessoal-relacional":
+        st.markdown("#### Informe a pontuação da subdimensão:")
+        sub = "Convivência no ambiente escolar"
+        max_ponto = obter_pontuacao_maxima("Dimensão pessoal-relacional", sub)
+        ponto = st.slider(f"{sub}", 0, max_ponto, 0)
+
+        openai_api_key = st.text_input("Insira sua OpenAI API Key", type="password")
+
+        if st.button("Gerar devolutiva da dimensão pessoal-relacional") and openai_api_key:
+            texto = gerar_texto_devolutiva_rico(ponto, "Dimensão pessoal-relacional", sub)
+
+            if not texto:
+                st.warning("⚠️ Nenhuma pontuação informada.")
             else:
-                prompt_inicial = """
+                prompt = f"""
 Você é um assistente especializado em gestão escolar. Seu objetivo é receber as devolutivas textuais de cada subdimensão e gerar um texto síntese único para a dimensão “Pessoal-Relacional”.
 
 Tarefa:
@@ -317,27 +334,24 @@ Tarefa:
 - Apontar as ações concretas que o gestor deve implementar para avançar ao próximo nível de maturidade (conforme rubricas).
 - Limite: até 3 parágrafos.
 - Tom: claro, direto, orientado a “próximos passos”.
+
+Subdimensão {sub}:\n{texto}
 """
+                try:
+                    from openai import OpenAI
+                    client = OpenAI(api_key=openai_api_key)
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "Você é um especialista em formação de professores."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.7,
+                        max_tokens=1000
+                    )
+                    resposta = response.choices[0].message.content
+                    st.markdown("### 📖 Devolutiva da Dimensão Pessoal-Relacional")
+                    st.markdown(resposta)
+                except Exception as e:
+                    st.error(f"Erro ao gerar devolutiva: {str(e)}")
 
-            conteudo = "\n\n".join(partes_pedagogicas + partes_pessoais)
-
-            prompt_final = f"{prompt_inicial}\n\n{conteudo}"
-
-            try:
-                openai.api_key = openai_api_key
-                from openai import OpenAI
-                client = OpenAI(api_key=openai_api_key)
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "Você é um especialista em formação de professores."},
-                        {"role": "user", "content": prompt_final}
-                    ],
-                    temperature=0.7,
-                    max_tokens=1500
-                )
-                resposta = response.choices[0].message.content
-                st.markdown("### 📖 Devolutiva Geral Consolidada")
-                st.markdown(resposta)
-            except Exception as e:
-                st.error(f"Erro ao gerar devolutiva geral: {str(e)}")
