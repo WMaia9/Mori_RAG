@@ -26,12 +26,12 @@ def carregar_metadados(caminho: str):
 
 @st.cache_data
 def carregar_devolutivas():
-    df = pd.read_csv("data/Devolutivas.csv", sep=";")
+    df = pd.read_csv("data/devolutivas.csv", sep=";")
     return df.rename(columns={"Necessidaes formativas": "Necessidades formativas"})
 
 @st.cache_data
 def carregar_rubricas():
-    return pd.read_csv("data/Rubricas.csv", sep=";")
+    return pd.read_csv("data/rubricas.csv", sep=";")
 
 # === 4. CARREGAMENTO DOS DADOS ===
 modelo = carregar_modelo()
