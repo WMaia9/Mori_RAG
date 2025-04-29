@@ -64,6 +64,31 @@ def encontrar_rubrica(pontuacao, dimensao, subdimensao):
     tipo_faixa = faixa.iloc[0]['tipo_faixa']
     return rubrica_numero, rubrica_nome, tipo_faixa
 
+def formatar_necessidades_formativas(texto):
+    """
+    Formata a seção de necessidades formativas em Markdown seguro.
+    """
+    if texto is None or not isinstance(texto, str) or texto.strip() == "" or pd.isna(texto):
+        return "Sem necessidades formativas informadas."
+
+    linhas = texto.strip().split("\n")
+    markdown_final = ""
+
+    for linha in linhas:
+        if not linha.strip():
+            continue
+        partes = [p.strip() for p in linha.split("•") if p.strip()]
+        if len(partes) == 0:
+            continue
+        if len(partes) == 1:
+            markdown_final += f"\n- **{partes[0]}**\n"
+        else:
+            markdown_final += f"\n- **{partes[0]}**\n"
+            for detalhe in partes[1:]:
+                markdown_final += f"  - {detalhe}\n"
+
+    return markdown_final.strip()
+
 def gerar_texto_devolutiva_markdown(pontuacao, dimensao, subdimensao):
     rubrica_numero, rubrica_nome, tipo_faixa = encontrar_rubrica(pontuacao, dimensao, subdimensao)
     if not rubrica_numero or not tipo_faixa:
@@ -82,7 +107,7 @@ def gerar_texto_devolutiva_markdown(pontuacao, dimensao, subdimensao):
     item = devolutiva.iloc[0]
 
     return f"""
-## 📄 **Devolutiva personalizada:**
+## 📄 **Devolutiva personalizada:**  
 
 🔢 **Pontuação:** {pontuacao}  
 📂 **Dimensão:** {dimensao}  
@@ -103,7 +128,7 @@ def gerar_texto_devolutiva_markdown(pontuacao, dimensao, subdimensao):
 ---
 
 📚 **Necessidades formativas:**  
-{item['Necessidades formativas']}
+{formatar_necessidades_formativas(item['Necessidades formativas'])}
 """.strip()
 
 def gerar_texto_devolutiva_rico(pontuacao, dimensao, subdimensao):
@@ -179,13 +204,12 @@ def gerar_card_material(row, i):
 
 def obter_pontuacao_maxima(dimensao, subdimensao):
     rubricas_filtradas = df_rubricas[
-        (df_rubricas['dimensao'] == dimensao) &
+        (df_rubricas['dimensao'] == dimensao) & 
         (df_rubricas['subdimensao'] == subdimensao)
     ]
     if rubricas_filtradas.empty:
-        return 51  # fallback se não encontrar
+        return 51
     return int(rubricas_filtradas['faixa_total_max'].max())
-
 
 # === 6. INTERFACE ===
 st.title("📘 Geração de Devolutivas e Materiais Relacionados")
@@ -211,7 +235,6 @@ if st.button("Gerar devolutiva"):
         resultados = df_odas.iloc[indices[0]].copy()
         resultados["distância"] = distancias[0]
 
-        # Apenas em português
         resultados = resultados[resultados["Idiomas"].str.contains("português", case=False, na=False)]
 
         artigos = resultados[resultados["Suporte"].str.contains("Texto|Artigo|Livro", case=False, na=False)]
