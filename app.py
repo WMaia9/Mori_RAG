@@ -6,9 +6,7 @@ import faiss
 import pickle
 import re
 from sentence_transformers import SentenceTransformer
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM
 import openai
-import torch
 
 # === 2. CONFIGURAÇÃO INICIAL ===
 st.set_page_config(page_title="📘 Geração de Devolutivas e Materiais", layout="wide")
@@ -35,34 +33,6 @@ def carregar_devolutivas():
 @st.cache_data
 def carregar_rubricas():
     return pd.read_csv("data/rubricas.csv", sep=";")
-
-@st.cache_resource
-def carregar_modelo_local():
-    model_id = "tiiuae/falcon-rw-1b"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
-    return model, tokenizer
-
-def gerar_devolutiva_com_modelo_local(prompt: str, max_tokens: int = 700) -> str:
-    model, tokenizer = carregar_modelo_local()
-
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
-    input_ids = inputs["input_ids"].to(model.device)
-    attention_mask = inputs["attention_mask"].to(model.device)
-
-    with torch.no_grad():
-        outputs = model.generate(
-            input_ids,
-            attention_mask=attention_mask,  # ⬅️ correção aqui
-            max_new_tokens=max_tokens,
-            do_sample=True,
-            temperature=0.7,
-            top_k=50,
-            top_p=0.95,
-            pad_token_id=tokenizer.eos_token_id  # ⬅️ correção aqui
-        )
-
-    return tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
 
 # === 4. CARREGAMENTO DOS DADOS ===
 modelo = carregar_modelo()
