@@ -6,7 +6,9 @@ import faiss
 import pickle
 import re
 from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModelForCausalLM
 import openai
+import torch
 
 # === 2. CONFIGURAÇÃO INICIAL ===
 st.set_page_config(page_title="📘 Geração de Devolutivas e Materiais", layout="wide")
@@ -33,6 +35,34 @@ def carregar_devolutivas():
 @st.cache_data
 def carregar_rubricas():
     return pd.read_csv("data/rubricas.csv", sep=";")
+
+@st.cache_resource
+def carregar_modelo_local():
+    model_id = "tiiuae/falcon-rw-1b"
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+    return model, tokenizer
+
+def gerar_devolutiva_com_modelo_local(prompt: str, max_tokens: int = 700) -> str:
+    model, tokenizer = carregar_modelo_local()
+
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1024)
+    input_ids = inputs["input_ids"].to(model.device)
+    attention_mask = inputs["attention_mask"].to(model.device)
+
+    with torch.no_grad():
+        outputs = model.generate(
+            input_ids,
+            attention_mask=attention_mask,  # ⬅️ correção aqui
+            max_new_tokens=max_tokens,
+            do_sample=True,
+            temperature=0.7,
+            top_k=50,
+            top_p=0.95,
+            pad_token_id=tokenizer.eos_token_id  # ⬅️ correção aqui
+        )
+
+    return tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
 
 # === 4. CARREGAMENTO DOS DADOS ===
 modelo = carregar_modelo()
@@ -185,6 +215,7 @@ def gerar_card_material(row, i):
     titulo = row.get("Título", "Sem título")
     resumo = re.sub(r"<[^>]+>", "", str(row.get("Resumo", "Sem resumo disponível")).strip())
     suporte = row.get("Suporte", "Não informado")
+    tipo = row.get("Tipo", "Não informado")
     dimensao = row.get("Dimensões", "Não informado")
     duracao = row.get("Descricao_duracao", "⏱️ Duração não informada")
     link_real = str(row.get("Fonte", "#")).strip()
@@ -196,7 +227,8 @@ def gerar_card_material(row, i):
     return f"""
 **{i+1}. [{titulo}]({link_real})**
 - 📝 **Resumo:** {resumo}
-- 📎 **Tipo:** {suporte} | **Dimensão:** {dimensao}
+- 📎 **Tipo:** {suporte} | **Subtipo:** {tipo}
+- 📂 **Dimensão:** {dimensao}
 - ⏱️ **Duração:** {duracao}
 - 📏 **Similaridade:** {sim:.4f} – *{interpretacao}*
 
@@ -235,16 +267,17 @@ if modo == "Individual":
             st.markdown(texto_markdown)
 
             embedding = gerar_embedding_para_rag(texto_rico)
-            distancias, indices = index.search(np.array(embedding).astype("float32"), 50)
+            distancias, indices = index.search(np.array(embedding).astype("float32"), 250)
             resultados = df_odas.iloc[indices[0]].copy()
             resultados["distância"] = distancias[0]
 
             resultados = resultados[resultados["Idiomas"].str.contains("português", case=False, na=False)]
 
-            artigos = resultados[resultados["Suporte"].str.contains("Texto|Artigo|Livro", case=False, na=False)]
-            videos = resultados[resultados["Suporte"].str.contains("Vídeo|Curso|Aula", case=False, na=False)]
+            artigos = resultados[resultados["Suporte"].str.contains("Texto|Artigo|Livro|Relatório|Resenha|Plano de aula", case=False, na=False)].head(15)
+            videos = resultados[resultados["Suporte"].str.contains("Vídeo|Curso|Aula", case=False, na=False)].head(15)
+            audios = resultados[resultados["Suporte"].str.contains("Áudio|Podcast|Rádio", case=False, na=False)].head(15)
 
-            markdown = "## 📚 **Materiais recomendados – Artigos:**\n\n"
+            markdown = "## 📚 **Materiais recomendados – Textos:**\n\n"
             for i, row in artigos.iterrows():
                 markdown += gerar_card_material(row, i)
 
@@ -252,7 +285,12 @@ if modo == "Individual":
             for i, row in videos.iterrows():
                 markdown += gerar_card_material(row, i)
 
+            markdown += "\n\n## 🎧 **Materiais recomendados – Áudios:**\n\n"
+            for i, row in audios.iterrows():
+                markdown += gerar_card_material(row, i)
+
             st.markdown(markdown)
+
 elif modo == "Geral":
     st.markdown("### Escolha a dimensão que deseja gerar a devolutiva geral:")
     dimensao_escolhida = st.selectbox("Dimensão:", ["Planejamento pedagógico", "Pessoal-relacional"])
@@ -354,4 +392,3 @@ Subdimensão {sub}:\n{texto}
                     st.markdown(resposta)
                 except Exception as e:
                     st.error(f"Erro ao gerar devolutiva: {str(e)}")
-
