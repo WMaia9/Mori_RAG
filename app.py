@@ -36,10 +36,20 @@ def carregar_rubricas():
 
 # === 4. CARREGAMENTO DOS DADOS ===
 modelo = carregar_modelo()
-index = carregar_index("data/odas/odas_index_stellav5.faiss")
-df_odas = carregar_metadados("data/odas/metadados_odas_stellav5.pkl")
 df_devolutivas = carregar_devolutivas()
 df_rubricas = carregar_rubricas()
+
+# Seleção de modelo de recomendação para modo Individual
+st.sidebar.markdown("### 🔍 Configurações de recomendação")
+modelo_ativo = st.sidebar.selectbox("Escolha o modelo de recomendação:", ["Old model", "New model"])
+
+if modelo_ativo == "Old model":
+    index = carregar_index("data/odas/odas_index_stellav5.faiss")
+    df_odas = carregar_metadados("data/odas/metadados_odas_stellav5.pkl")
+else:
+    index = carregar_index("data/odas/odas_index_vnova.faiss")
+    df_odas = carregar_metadados("data/odas/metadados_odas_vnova.pkl")
+
 
 # === 5. FUNÇÕES DE APOIO ===
 def encontrar_rubrica(pontuacao, dimensao, subdimensao):
