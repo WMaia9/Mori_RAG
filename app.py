@@ -237,9 +237,25 @@ if modo == "Individual":
     pontuacao_max = obter_pontuacao_maxima(dimensao, subdimensao)
     pontuacao = st.slider("Pontuação:", 0, pontuacao_max, min(17, pontuacao_max))
 
-    if st.button("Gerar devolutiva"):
+    openai_api_key = st.text_input("Insira sua OpenAI API Key", type="password")
+
+    if st.button("Gerar devolutiva") and openai_api_key:
         texto_markdown = gerar_texto_devolutiva_markdown(pontuacao, dimensao, subdimensao)
         texto_rico = gerar_texto_devolutiva_rico(pontuacao, dimensao, subdimensao)
+
+        # Calcular nível com base na pontuação
+        nivel_percentual = pontuacao / pontuacao_max
+        if nivel_percentual < 0.20:
+            nivel_usuario = "muito iniciante"
+        elif nivel_percentual < 0.40:
+            nivel_usuario = "iniciante"
+        elif nivel_percentual < 0.60:
+            nivel_usuario = "intermediário"
+        elif nivel_percentual < 0.80:
+            nivel_usuario = "avançado"
+        else:
+            nivel_usuario = "muito avançado"
+
 
         if texto_markdown is None or texto_rico is None:
             st.warning("⚠️ Não foi possível gerar devolutiva para essa pontuação.")
@@ -250,12 +266,72 @@ if modo == "Individual":
             distancias, indices = index.search(np.array(embedding).astype("float32"), 250)
             resultados = df_odas.iloc[indices[0]].copy()
             resultados["distância"] = distancias[0]
-
             resultados = resultados[resultados["Idiomas"].str.contains("português", case=False, na=False)]
 
             artigos = resultados[resultados["Suporte"].str.contains("Texto|Artigo|Livro|Relatório|Resenha|Plano de aula", case=False, na=False)].head(15)
             videos = resultados[resultados["Suporte"].str.contains("Vídeo|Curso|Aula", case=False, na=False)].head(15)
             audios = resultados[resultados["Suporte"].str.contains("Áudio|Podcast|Rádio", case=False, na=False)].head(15)
+
+            # Prompt para o ChatGPT
+            prompt = f"""
+                        Você é um especialista em formação docente. Reordene os materiais abaixo de acordo com o seguinte perfil:
+
+                        - Pontuação do usuário: {pontuacao}/{pontuacao_max} em "{subdimensao}"  
+                        - Perfil: nível {nivel_usuario} 
+                        - Devolutiva textual:
+                        \"\"\"{texto_rico}\"\"\"
+
+                        Abaixo estão 15 materiais de texto. Para cada um:
+                        - Diga a ordem ideal (mais útil primeiro)
+                        - priorije duracação menores
+                        - Atribua uma nota de 1 a 5 estrelas
+                        - Justifique em 1 parágrafo
+
+                        Formato da resposta:
+                        1. Título – ⭐⭐⭐⭐
+                        Justificativa: ...
+                        2. ...
+                        """
+            for i, row in artigos.iterrows():
+                titulo = row.get("Título", "Sem título")
+                resumo = re.sub(r"<[^>]+>", "", str(row.get("Resumo", "")).strip())
+                prompt += f"\n\n{i+1}. {titulo}\nResumo: {resumo}"
+
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=openai_api_key)
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "Você é um especialista em formação de professores."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+                resposta = response.choices[0].message.content
+
+                import re
+                ordem = []
+                for linha in resposta.strip().split("\n"):
+                    match = re.match(r"^\d+\.\s*(.+?)\s*[–-]\s*[⭐★]{1,5}", linha.strip())
+                    if match:
+                        titulo = match.group(1).strip().lower()
+                        ordem.append(titulo)
+
+                artigos["título_clean"] = artigos["Título"].str.lower().str.strip()
+                artigos_reordenados = []
+
+                for titulo_gpt in ordem:
+                    match = artigos[artigos["título_clean"].str.contains(re.escape(titulo_gpt))]
+                    if not match.empty:
+                        artigos_reordenados.append(match.iloc[0])
+
+                if artigos_reordenados:
+                    artigos = pd.DataFrame(artigos_reordenados)
+
+            except Exception as e:
+                st.error(f"Erro ao reordenar com ChatGPT: {str(e)}")
 
             markdown = "## 📚 **Materiais recomendados – Textos:**\n\n"
             for i, row in artigos.iterrows():
@@ -270,6 +346,7 @@ if modo == "Individual":
                 markdown += gerar_card_material(row, i)
 
             st.markdown(markdown)
+
 
 elif modo == "Geral":
     st.markdown("### Escolha a dimensão que deseja gerar a devolutiva geral:")
