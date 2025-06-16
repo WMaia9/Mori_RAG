@@ -102,6 +102,7 @@ if modo == "Individual":
 
 elif modo == "Geral":
     st.markdown("### Devolutiva Geral da Dimensão")
+    
     # A configuração do modelo GPT para síntese permanece na sidebar
     st.sidebar.markdown("### 🤖 Configurações de IA (Síntese)")
     modelo_gpt_selecionado = st.sidebar.selectbox(
@@ -110,7 +111,7 @@ elif modo == "Geral":
         help="Usado para gerar o texto de síntese no Modo Geral."
     )
     
-    dimensao_escolhida = st.selectbox("Escolha a dimensão que deseja gerar a devolutiva geral:", ["Planejamento pedagógico", "Pessoal-relacional"])
+    dimensao_escolhida = st.selectbox("Escolha a dimensão para gerar a devolutiva geral:", ["Planejamento pedagógico", "Pessoal-relacional"])
 
     if dimensao_escolhida == "Planejamento pedagógico":
         st.markdown("#### Informe as pontuações das subdimensões pedagógicas:")
@@ -120,13 +121,14 @@ elif modo == "Geral":
         ]
         pontuacoes = {}
         for sub in subdimensoes:
-            max_ponto = int(df_rubricas[df_rubricas['subdimensao'] == sub]['faixa_total_max'].max())
+            # AQUI ESTÁ A CORREÇÃO: Usando a função segura
+            max_ponto = obter_pontuacao_maxima(df_rubricas, "Dimensão pedagógica", sub)
             pontuacoes[sub] = st.slider(f"{sub}", 0, max_ponto, 0, key=f"slider_{sub}")
 
         openai_api_key = st.text_input("Insira sua OpenAI API Key para a síntese", type="password", key="geral_api_key_1")
 
         if st.button("Gerar devolutiva da dimensão pedagógica") and openai_api_key:
-            partes = [gerar_texto_devolutiva_rico(ponto, "Dimensão pedagógica", sub) for sub, ponto in pontuacoes.items()]
+            partes = [gerar_texto_devolutiva_rico(df_devolutivas, df_rubricas, ponto, "Dimensão pedagógica", sub, modelo_ativo) for sub, ponto in pontuacoes.items()]
             partes_validas = [p for p in partes if p]
 
             if not partes_validas:
@@ -148,13 +150,14 @@ elif modo == "Geral":
     elif dimensao_escolhida == "Pessoal-relacional":
         st.markdown("#### Informe a pontuação da subdimensão:")
         sub = "Convivência no ambiente escolar"
-        max_ponto = int(df_rubricas[df_rubricas['subdimensao'] == sub]['faixa_total_max'].max())
+        # AQUI ESTÁ A CORREÇÃO: Usando a função segura também nesta parte
+        max_ponto = obter_pontuacao_maxima(df_rubricas, "Dimensão pessoal-relacional", sub)
         ponto = st.slider(f"{sub}", 0, max_ponto, 0, key=f"slider_{sub}")
 
         openai_api_key = st.text_input("Insira sua OpenAI API Key para a síntese", type="password", key="geral_api_key_2")
 
         if st.button("Gerar devolutiva da dimensão pessoal-relacional") and openai_api_key:
-            texto = gerar_texto_devolutiva_rico(ponto, "Dimensão pessoal-relacional", sub)
+            texto = gerar_texto_devolutiva_rico(df_devolutivas, df_rubricas, ponto, "Dimensão pessoal-relacional", sub, modelo_ativo)
             if not texto:
                 st.warning("⚠️ Nenhuma pontuação informada.")
             else:
