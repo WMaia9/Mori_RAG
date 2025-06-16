@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np  # <--- ADICIONE ESTA LINHA
+import numpy as np 
 import faiss
 import pickle
 import re
