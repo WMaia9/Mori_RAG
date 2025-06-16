@@ -71,8 +71,6 @@ def formatar_necessidades_formativas(texto):
             markdown_final += f"  - {detalhe}\n"
     return markdown_final.strip()
 
-# VERSÃO NOVA E CORRIGIDA
-
 def gerar_texto_devolutiva_markdown(df_devolutivas, df_rubricas, pontuacao, dimensao, subdimensao):
     """
     Gera o texto completo da devolutiva com a formatação final corrigida,
