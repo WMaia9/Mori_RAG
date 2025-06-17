@@ -1,16 +1,19 @@
 # app.py
+# Arquivo principal que controla a interface e orquestra as chamadas
+# para os módulos de utilidades e de recomendação.
 
 import streamlit as st
 from openai import OpenAI
+from typing import Any, Dict
+
 # Importando nossas funções dos outros arquivos
 from utils import *
 from recommendation import get_recommendations
 
-# === CONFIGURAÇÃO INICIAL ===
+# === CONFIGURAÇÃO E CARREGAMENTO GLOBAL ===
 st.set_page_config(page_title="📘 Geração de Devolutivas e Materiais", layout="wide")
 
-# === CARREGAMENTO GLOBAL DOS DADOS ===
-# Todas as funções de carregamento agora vivem em utils.py
+# As funções de carregamento são chamadas a partir de utils.py
 modelo_st = carregar_modelo_st()
 df_devolutivas = carregar_devolutivas()
 df_rubricas = carregar_rubricas()
@@ -27,17 +30,18 @@ modelo_ativo = st.sidebar.selectbox(
 
 # Carregamento condicional dos dados de busca
 if modelo_ativo == "Modelo Antigo (Legacy)":
-    st.sidebar.info("Base de dados original (stellav5). Lógica de busca simples.")
+    st.sidebar.info("Base de dados original (stellav5).")
     index = carregar_index("data/odas/odas_index_stellav5.faiss")
     df_odas = carregar_metadados("data/odas/metadados_odas_stellav5.pkl")
 elif modelo_ativo == "Modelo Intermediário (Busca Simples)":
-    st.sidebar.info("Base de dados atualizada (1606), sem enriquecimento de IA. Lógica de busca simples.")
+    st.sidebar.info("Base de dados atualizada (1606), busca simples.")
     index = carregar_index("data/odas/odas_index_1606.faiss")
     df_odas = carregar_metadados("data/odas/metadados_odas_1606.pkl")
 else: # Modelo Avançado
-    st.sidebar.info("Base de dados enriquecida com IA (v2). Usa lógica de Re-ranking Ponderado.")
+    st.sidebar.info("Base de dados enriquecida com IA (v2). Lógica de Re-ranking.")
     index = carregar_index("data/odas/odas_index_1606_v2.faiss")
     df_odas = carregar_metadados("data/odas/metadados_odas_1606_v2.pkl")
+
 
 # === INTERFACE PRINCIPAL ===
 st.title("📘 Geração de Devolutivas e Materiais Relacionados")
@@ -62,11 +66,10 @@ if modo == "Individual":
         else:
             st.markdown(texto_markdown)
             
-            # --- Lógica de Recomendação ---
             with st.spinner("Buscando e analisando os melhores materiais..."):
                 texto_rico = gerar_texto_devolutiva_rico(df_devolutivas, df_rubricas, pontuacao, dimensao, subdimensao, modelo_ativo)
                 
-                # A mágica acontece aqui: chamamos nossa função centralizada
+                # A mágica acontece aqui: chamamos nossa função centralizada do recommendation.py
                 artigos, videos, audios, visuais, interativos = get_recommendations(
                     modelo_st, index, df_odas, df_rubricas, pontuacao, dimensao, subdimensao, texto_rico, modelo_ativo
                 )
@@ -77,42 +80,34 @@ if modo == "Individual":
 
             if any(not df.empty for df in todas_listas):
                 st.markdown(f"--- \n### Materiais Recomendados ({titulo_secao})")
-                if not artigos.empty:
-                    st.markdown("#### 📚 Textos e Artigos")
-                    for i, row in enumerate(artigos.itertuples()):
-                        st.markdown(gerar_card_material(row._asdict(), i))
-                if not videos.empty:
-                    st.markdown("#### 🎥 Vídeos e Aulas")
-                    for i, row in enumerate(videos.itertuples()):
-                        st.markdown(gerar_card_material(row._asdict(), i))
-                if not audios.empty:
-                    st.markdown("#### 🎧 Áudios e Podcasts")
-                    for i, row in enumerate(audios.itertuples()):
-                        st.markdown(gerar_card_material(row._asdict(), i))
-                if not visuais.empty:
-                    st.markdown("#### 📊 Materiais Visuais")
-                    for i, row in enumerate(visuais.itertuples()):
-                        st.markdown(gerar_card_material(row._asdict(), i))
-                if not interativos.empty:
-                    st.markdown("#### 🎮 Materiais Interativos")
-                    for i, row in enumerate(interativos.itertuples()):
-                        st.markdown(gerar_card_material(row._asdict(), i))
+                
+                # Função auxiliar para não repetir o código de exibição
+                def exibir_categoria(titulo: str, emoji: str, df: pd.DataFrame):
+                    if not df.empty:
+                        st.markdown(f"#### {emoji} {titulo}")
+                        for i, row in enumerate(df.itertuples()):
+                            st.markdown(gerar_card_material(row._asdict(), i))
+
+                exibir_categoria("Textos e Artigos", "📚", artigos)
+                exibir_categoria("Vídeos e Aulas", "🎥", videos)
+                exibir_categoria("Áudios e Podcasts", "🎧", audios)
+                exibir_categoria("Materiais Visuais", "📊", visuais)
+                exibir_categoria("Materiais Interativos", "🎮", interativos)
             else:
-                st.info("Nenhum material encontrado para esta combinação.")
+                st.info("Nenhum material relevante encontrado para esta combinação.")
 
 elif modo == "Geral":
     st.markdown("### Devolutiva Geral da Dimensão")
     
-    # A configuração do modelo GPT para síntese permanece na sidebar
     st.sidebar.markdown("### 🤖 Configurações de IA (Síntese)")
     modelo_gpt_selecionado = st.sidebar.selectbox(
-        "Escolha o modelo de IA:",
-        ["gpt-4o-mini", "gpt-4"], index=0,
+        "Escolha o modelo de IA:", ["gpt-4o-mini", "gpt-4"], index=0,
         help="Usado para gerar o texto de síntese no Modo Geral."
     )
     
     dimensao_escolhida = st.selectbox("Escolha a dimensão para gerar a devolutiva geral:", ["Planejamento pedagógico", "Pessoal-relacional"])
 
+    # --- Lógica para a Dimensão "Planejamento pedagógico" ---
     if dimensao_escolhida == "Planejamento pedagógico":
         st.markdown("#### Informe as pontuações das subdimensões pedagógicas:")
         subdimensoes = [
@@ -121,7 +116,6 @@ elif modo == "Geral":
         ]
         pontuacoes = {}
         for sub in subdimensoes:
-            # AQUI ESTÁ A CORREÇÃO: Usando a função segura
             max_ponto = obter_pontuacao_maxima(df_rubricas, "Dimensão pedagógica", sub)
             pontuacoes[sub] = st.slider(f"{sub}", 0, max_ponto, 0, key=f"slider_{sub}")
 
@@ -135,22 +129,19 @@ elif modo == "Geral":
                 st.warning("⚠️ Nenhuma pontuação informada ou devolutiva encontrada.")
             else:
                 prompt = f"Você é um assistente especializado em gestão escolar. Seu objetivo é receber as devolutivas textuais de cada subdimensão e gerar um texto síntese único para a dimensão “Planejamento pedagógico”.\n\nTarefa:\n- Identificar e sintetizar os principais pontos fortes que emergem de todas as subdimensões.\n- Apontar as ações concretas que o gestor deve implementar para avançar ao próximo nível de maturidade (conforme rubricas).\n- Limite: até 3 parágrafos.\n- Tom: claro, direto, orientado a “próximos passos”.\n\n---\n{chr(10).join(partes_validas)}"
-                try:
-                    client = OpenAI(api_key=openai_api_key)
-                    response = client.chat.completions.create(
-                        model=modelo_gpt_selecionado,
-                        messages=[{"role": "system", "content": "Você é um especialista em formação de professores."}, {"role": "user", "content": prompt}],
-                        temperature=0.7, max_tokens=1500
-                    )
+                
+                client = OpenAI(api_key=openai_api_key)
+                with st.spinner("Gerando síntese com a IA..."):
+                    resposta_sintetizada = sintetizar_devolutiva_com_ia(client, modelo_gpt_selecionado, prompt, max_tokens=1500)
+                
+                if resposta_sintetizada:
                     st.markdown("### 📖 Devolutiva da Dimensão Pedagógica")
-                    st.markdown(response.choices[0].message.content)
-                except Exception as e:
-                    st.error(f"Erro ao gerar devolutiva: {str(e)}")
+                    st.markdown(resposta_sintetizada)
 
+    # --- Lógica para a Dimensão "Pessoal-relacional" ---
     elif dimensao_escolhida == "Pessoal-relacional":
         st.markdown("#### Informe a pontuação da subdimensão:")
         sub = "Convivência no ambiente escolar"
-        # AQUI ESTÁ A CORREÇÃO: Usando a função segura também nesta parte
         max_ponto = obter_pontuacao_maxima(df_rubricas, "Dimensão pessoal-relacional", sub)
         ponto = st.slider(f"{sub}", 0, max_ponto, 0, key=f"slider_{sub}")
 
@@ -162,14 +153,11 @@ elif modo == "Geral":
                 st.warning("⚠️ Nenhuma pontuação informada.")
             else:
                 prompt = f"Você é um assistente especializado em gestão escolar. Seu objetivo é receber as devolutivas textuais de cada subdimensão e gerar um texto síntese único para a dimensão “Pessoal-Relacional”.\n\nTarefa:\n- Identificar e sintetizar os principais pontos fortes que emergem da subdimensão.\n- Apontar as ações concretas que o gestor deve implementar para avançar ao próximo nível de maturidade (conforme rubricas).\n- Limite: até 3 parágrafos.\n- Tom: claro, direto, orientado a “próximos passos”.\n\nSubdimensão {sub}:\n{texto}"
-                try:
-                    client = OpenAI(api_key=openai_api_key)
-                    response = client.chat.completions.create(
-                        model=modelo_gpt_selecionado,
-                        messages=[{"role": "system", "content": "Você é um especialista em formação de professores."}, {"role": "user", "content": prompt}],
-                        temperature=0.7, max_tokens=1000
-                    )
+                
+                client = OpenAI(api_key=openai_api_key)
+                with st.spinner("Gerando síntese com a IA..."):
+                    resposta_sintetizada = sintetizar_devolutiva_com_ia(client, modelo_gpt_selecionado, prompt, max_tokens=1000)
+
+                if resposta_sintetizada:
                     st.markdown("### 📖 Devolutiva da Dimensão Pessoal-Relacional")
-                    st.markdown(response.choices[0].message.content)
-                except Exception as e:
-                    st.error(f"Erro ao gerar devolutiva: {str(e)}")
+                    st.markdown(resposta_sintetizada)
