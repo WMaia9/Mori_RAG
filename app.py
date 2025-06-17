@@ -5,8 +5,6 @@
 import streamlit as st
 from openai import OpenAI
 from typing import Any, Dict
-
-# Importando nossas funções dos outros arquivos
 from utils import *
 from recommendation import get_recommendations
 
