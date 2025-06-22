@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import re
 from typing import Tuple
-from utils import gerar_embedding_para_rag, encontrar_rubrica
+from .utils import gerar_embedding_para_rag, encontrar_rubrica
 
 def get_recommendations(
     modelo_st,

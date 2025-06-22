@@ -11,53 +11,60 @@ import re
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 from typing import Tuple, Dict, Any, Optional
+from pathlib import Path # Importa a biblioteca para manipulação de caminhos
 
-# === FUNÇÕES DE CACHE PARA CARREGAMENTO DE DADOS ===
+# === DEFINIÇÃO DA RAIZ DO APP ===
+# Esta linha encontra o caminho para a pasta 'src' e sobe um nível para chegar na raiz 'streamlit_app'
+APP_ROOT = Path(__file__).parent.parent
+
+# === FUNÇÕES DE CACHE COM CAMINHOS CORRIGIDOS ===
 
 @st.cache_resource
 def carregar_modelo_st() -> SentenceTransformer:
-    """Carrega o modelo de embedding SentenceTransformer e o mantém em cache."""
+    """Carrega o modelo de embedding SentenceTransformer."""
     return SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
 
 @st.cache_resource
-def carregar_index(caminho: str) -> faiss.Index:
-    """Carrega o índice FAISS do disco e o mantém em cache."""
+def carregar_index(caminho_relativo: str) -> faiss.Index:
+    """Carrega o índice FAISS a partir de um caminho relativo à raiz do app."""
+    caminho_completo = APP_ROOT / caminho_relativo
     try:
-        return faiss.read_index(caminho)
+        return faiss.read_index(str(caminho_completo))
     except Exception as e:
-        st.error(f"Erro ao carregar o índice FAISS de '{caminho}': {e}")
+        st.error(f"Erro ao carregar o índice FAISS de '{caminho_completo}': {e}")
         st.stop()
 
 @st.cache_data
-def carregar_metadados(caminho: str) -> pd.DataFrame:
-    """Carrega o DataFrame de metadados do disco e o mantém em cache."""
+def carregar_metadados(caminho_relativo: str) -> pd.DataFrame:
+    """Carrega o DataFrame de metadados a partir de um caminho relativo à raiz do app."""
+    caminho_completo = APP_ROOT / caminho_relativo
     try:
-        with open(caminho, "rb") as f:
+        with open(caminho_completo, "rb") as f:
             return pickle.load(f)
     except FileNotFoundError:
-        st.error(f"Arquivo de metadados não encontrado em '{caminho}'. Verifique o caminho.")
+        st.error(f"Arquivo de metadados não encontrado em '{caminho_completo}'. Verifique o caminho.")
         st.stop()
 
 @st.cache_data
 def carregar_devolutivas() -> pd.DataFrame:
     """Carrega o CSV com os textos das devolutivas."""
-    caminho = "data/devolutivas.csv"
+    caminho_completo = APP_ROOT / "data" / "devolutivas.csv"
     try:
-        df = pd.read_csv(caminho, sep=";")
+        df = pd.read_csv(caminho_completo, sep=";")
         return df.rename(columns={"Necessidaes formativas": "Necessidades formativas"})
     except FileNotFoundError:
-        st.error(f"Arquivo de devolutivas não encontrado em '{caminho}'.")
+        st.error(f"Arquivo de devolutivas não encontrado em '{caminho_completo}'.")
         st.stop()
 
 @st.cache_data
 def carregar_rubricas() -> pd.DataFrame:
     """Carrega o CSV com as faixas de pontuação das rubricas."""
-    caminho = "data/rubricas.csv"
+    caminho_completo = APP_ROOT / "data" / "rubricas.csv"
     try:
-        df = pd.read_csv(caminho, sep=";")
+        df = pd.read_csv(caminho_completo, sep=";")
         return df
     except FileNotFoundError:
-        st.error(f"Arquivo de rubricas não encontrado em '{caminho}'.")
+        st.error(f"Arquivo de rubricas não encontrado em '{caminho_completo}'.")
         st.stop()
 
 # === FUNÇÕES AUXILIARES DE LÓGICA E FORMATAÇÃO ===

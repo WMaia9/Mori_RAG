@@ -2,7 +2,7 @@
 
 import streamlit as st
 from openai import OpenAI
-from utils import * # Importa todas as funções de utils.py
+from src.utils import *
 
 # --- CABEÇALHO E CARREGAMENTO DE DADOS ---
 exibir_cabecalho()

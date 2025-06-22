@@ -1,9 +1,22 @@
 # pages/1_Recomendacao_Individual.py
 
 import streamlit as st
-# AQUI ESTÁ A CORREÇÃO: As duas importações foram separadas em suas próprias linhas.
-from utils import *
-from streamlit_app.recommendation import get_recommendations
+import pandas as pd
+import sys
+from pathlib import Path
+
+# --- BLOCO DE CÓDIGO PARA CORREÇÃO DE CAMINHO ---
+# Adiciona a pasta raiz do app (streamlit_app) ao sys.path
+# Isso garante que os módulos na pasta 'src' sejam encontrados.
+# Este é um padrão comum e robusto para apps Streamlit multi-página.
+app_root = str(Path(__file__).parent.parent)
+if app_root not in sys.path:
+    sys.path.append(app_root)
+# ------------------------------------------------
+
+# Agora as importações devem funcionar sem erro
+from src.utils import *
+from src.recommendation import get_recommendations
 
 # --- CABEÇALHO ---
 exibir_cabecalho()
@@ -46,7 +59,6 @@ pontuacao_max = obter_pontuacao_maxima(df_rubricas, dimensao, subdimensao)
 pontuacao = st.slider("Pontuação:", 0, pontuacao_max, min(17, pontuacao_max))
 
 if st.button("Gerar devolutiva e recomendações"):
-    # Geração da Devolutiva
     texto_markdown = gerar_texto_devolutiva_markdown(df_devolutivas, df_rubricas, pontuacao, dimensao, subdimensao)
     
     if texto_markdown is None:
@@ -54,21 +66,23 @@ if st.button("Gerar devolutiva e recomendações"):
     else:
         st.markdown(texto_markdown)
         
-        # Lógica de Recomendação
         with st.spinner(f"Buscando recomendações com o {modelo_ativo}..."):
             texto_rico = gerar_texto_devolutiva_rico(df_devolutivas, df_rubricas, pontuacao, dimensao, subdimensao, modelo_ativo)
             
-            artigos, videos, audios, visuais, interativos = get_recommendations(
-                modelo_st, index, df_odas, df_rubricas, pontuacao, dimensao, subdimensao, texto_rico, modelo_ativo
-            )
+            if texto_rico:
+                artigos, videos, audios, visuais, interativos = get_recommendations(
+                    modelo_st, index, df_odas, df_rubricas, pontuacao, dimensao, subdimensao, texto_rico, modelo_ativo
+                )
+            else:
+                artigos, videos, audios, visuais, interativos = (pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
 
         # Exibição dos Resultados
-        titulo_secao = f"do {modelo_ativo}"
+        st.markdown("---")
+        st.header("Materiais Recomendados")
+        st.info(f"Resultados gerados pelo **{modelo_ativo}**.")
         todas_listas = [artigos, videos, audios, visuais, interativos]
 
         if any(not df.empty for df in todas_listas):
-            st.markdown(f"--- \n### Materiais Recomendados ({titulo_secao})")
-            
             def exibir_categoria(titulo: str, emoji: str, df: pd.DataFrame):
                 if not df.empty:
                     st.markdown(f"#### {emoji} {titulo}")

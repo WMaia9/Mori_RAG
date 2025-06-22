@@ -1,7 +1,7 @@
 # Home.py
 
 import streamlit as st
-from utils import exibir_cabecalho
+from src.utils import exibir_cabecalho
 
 # --- CONFIGURAÇÃO DA PÁGINA (DEVE SER O PRIMEIRO COMANDO) ---
 st.set_page_config(
