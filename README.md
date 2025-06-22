@@ -64,7 +64,7 @@ Siga os passos abaixo para configurar e rodar o projeto localmente.
 ```bash
 # 1. Clone o repositório para a sua máquina
 git clone [URL_DO_SEU_REPOSITORIO]
-cd PROJETO_MORI
+cd Mori_RAG
 
 # 2. Ative o Git LFS (só precisa fazer uma vez por repositório)
 git lfs install
