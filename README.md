@@ -4,32 +4,60 @@ Este projeto é uma aplicação web desenvolvida com Streamlit, projetada para a
 
 ## ✨ Funcionalidades Principais
 
-* **Devolutiva Individual:** Gera um feedback detalhado para um profissional com base em sua pontuação em diferentes dimensões e subdimensões pedagógicas.
-* **Recomendação Inteligente de Materiais:** Utiliza busca vetorial (Sentence Transformers + FAISS) para encontrar e recomendar materiais de formação (textos, vídeos, áudios, etc.) relevantes para as necessidades identificadas na devolutiva.
-* **Motores de Recomendação Comparáveis:** Permite ao usuário alternar entre diferentes modelos de recomendação para comparar os resultados:
-    * **Modelo Simples:** Busca por similaridade semântica em toda a base de dados.
-    * **Modelo Avançado:** Utiliza uma arquitetura de Filtro Inteligente + Re-ranking Ponderado, alavancando metadados gerados por IA para uma precisão superior.
-* **Síntese de Devolutiva Geral:** Utiliza um modelo de linguagem generativo (GPT) para criar um texto consolidado para equipes ou para a escola como um todo.
+* **Geração de Devolutivas Personalizadas:** Cria textos detalhados com pontos fortes, pontos a avançar e necessidades formativas com base em pontuações de avaliação.
+* **Recomendação Inteligente de Materiais:** Utiliza busca vetorial (Sentence Transformers + FAISS) e um sistema de re-ranking ponderado para sugerir os materiais mais relevantes da base de dados.
+* **Comparação de Modelos de IA:** Permite ao usuário alternar em tempo real entre diferentes motores de recomendação (Legado, Busca Simples e Avançado com Re-ranking) para comparar a qualidade e a filosofia de cada abordagem.
+* **Síntese de Devolutivas Gerais:** Usa um modelo de linguagem generativo (OpenAI GPT) para criar um texto consolidado para equipes ou para a escola como um todo.
 
 ## 📂 Estrutura do Projeto
 
-O projeto é organizado da seguinte forma para separar a preparação dos dados da aplicação final:
+O projeto é organizado com uma estrutura modular para separar a preparação dos dados da aplicação final, facilitando a manutenção e a escalabilidade. 📂 PROJETO_MORI/
+│
+├── 📜 .gitignore
+├── 📜 README.md
+└── 📜 requirements.txt
+│
+├── 📂 notebooks/
+│   └── 📄 1_Geracao_Embeddings.ipynb
+│
+├── 📂 data_source/
+│   └── 📄 Base_de_ODAS_1606.xlsx
+│
+└── 📂 streamlit_app/
+│
+├── 📂 .streamlit/ & 📂 assets/
+├── 📂 data/
+│   └── 📄 devolutivas.csv, rubricas.csv
+├── 📂 models/
+│   └── 📄 *.faiss, *.pkl
+├── 📂 pages/
+│   ├── 🐍 1_Recomendacao_Individual.py
+│   └── 🐍 2_Devolutiva_Geral.py
+│
+├── 📂 src/
+│   ├── 📄 init.py
+│   ├── 🐍 recommendation.py
+│   └── 🐍 utils.py
+│
+└── 🐍 Home.py
 
--   `notebooks/`: Contém os Jupyter Notebooks para processamento de dados e geração dos embeddings e modelos.
--   `data_source/`: Local para os dados brutos (ex: planilhas Excel) que alimentam os notebooks.
--   `streamlit_app/`: Contém o código-fonte completo da aplicação web.
-    -   `models/`: Armazena os artefatos gerados (índices `.faiss` e metadados `.pkl`).
-    -   `pages/`: Contém as diferentes páginas da aplicação.
--   `requirements.txt`: Lista todas as dependências do projeto.
+
+## 🛠️ Tecnologias Utilizadas
+
+* **Interface Web:** Streamlit
+* **Manipulação de Dados:** Pandas, NumPy
+* **IA & Busca Semântica:** Sentence-Transformers, FAISS
+* **Síntese de Texto:** OpenAI API
 
 ## 🚀 Instalação e Execução
 
-Siga os passos abaixo para rodar o projeto localmente.
+Siga os passos abaixo para configurar e rodar o projeto localmente.
 
 ### 1. Pré-requisitos
 
-- Python 3.9 ou superior
-- Git
+-   Python 3.9 ou superior
+-   Git
+-   **Git LFS** (para lidar com arquivos de modelo grandes). Instale a partir de [git-lfs.github.com](https://git-lfs.github.com/).
 
 ### 2. Setup do Ambiente
 
@@ -38,9 +66,13 @@ Siga os passos abaixo para rodar o projeto localmente.
 git clone [URL_DO_SEU_REPOSITORIO]
 cd PROJETO_MORI
 
-# 2. Crie e ative um ambiente virtual
+# 2. Ative o Git LFS (só precisa fazer uma vez por repositório)
+git lfs install
+git lfs pull
+
+# 3. Crie e ative um ambiente virtual
 python3 -m venv venv
 source venv/bin/activate  # No Windows: venv\Scripts\activate
 
-# 3. Instale todas as dependências
+# 4. Instale todas as dependências
 pip install -r requirements.txt
