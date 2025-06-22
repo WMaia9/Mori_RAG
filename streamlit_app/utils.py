@@ -9,105 +9,91 @@ import faiss
 import pickle
 import re
 from sentence_transformers import SentenceTransformer
-from typing import Tuple, List, Dict, Any, Optional
 from openai import OpenAI
-from typing import Optional
+from typing import Tuple, Dict, Any, Optional
 
 # === FUNÇÕES DE CACHE PARA CARREGAMENTO DE DADOS ===
 
 @st.cache_resource
 def carregar_modelo_st() -> SentenceTransformer:
-    """Carrega o modelo de embedding SentenceTransformer e o mantém em cache.
-
-    Returns:
-        SentenceTransformer: O objeto do modelo carregado.
-    """
+    """Carrega o modelo de embedding SentenceTransformer e o mantém em cache."""
     return SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
 
 @st.cache_resource
 def carregar_index(caminho: str) -> faiss.Index:
-    """Carrega o índice FAISS do disco e o mantém em cache.
-
-    Args:
-        caminho (str): O caminho para o arquivo .faiss.
-
-    Returns:
-        faiss.Index: O objeto do índice FAISS carregado.
-    """
-    return faiss.read_index(caminho)
+    """Carrega o índice FAISS do disco e o mantém em cache."""
+    try:
+        return faiss.read_index(caminho)
+    except Exception as e:
+        st.error(f"Erro ao carregar o índice FAISS de '{caminho}': {e}")
+        st.stop()
 
 @st.cache_data
 def carregar_metadados(caminho: str) -> pd.DataFrame:
-    """Carrega o DataFrame de metadados do disco e o mantém em cache.
-
-    Args:
-        caminho (str): O caminho para o arquivo .pkl.
-
-    Returns:
-        pd.DataFrame: O DataFrame com os metadados dos materiais.
-    """
-    with open(caminho, "rb") as f:
-        return pickle.load(f)
+    """Carrega o DataFrame de metadados do disco e o mantém em cache."""
+    try:
+        with open(caminho, "rb") as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        st.error(f"Arquivo de metadados não encontrado em '{caminho}'. Verifique o caminho.")
+        st.stop()
 
 @st.cache_data
 def carregar_devolutivas() -> pd.DataFrame:
-    """Carrega e prepara o CSV com os textos das devolutivas."""
-    df = pd.read_csv("data/devolutivas.csv", sep=";")
-    return df.rename(columns={"Necessidaes formativas": "Necessidades formativas"})
+    """Carrega o CSV com os textos das devolutivas."""
+    caminho = "data/devolutivas.csv"
+    try:
+        df = pd.read_csv(caminho, sep=";")
+        return df.rename(columns={"Necessidaes formativas": "Necessidades formativas"})
+    except FileNotFoundError:
+        st.error(f"Arquivo de devolutivas não encontrado em '{caminho}'.")
+        st.stop()
 
 @st.cache_data
 def carregar_rubricas() -> pd.DataFrame:
-    """Carrega e prepara o CSV com as faixas de pontuação das rubricas."""
-    return pd.read_csv("data/rubricas.csv", sep=";")
-
+    """Carrega o CSV com as faixas de pontuação das rubricas."""
+    caminho = "data/rubricas.csv"
+    try:
+        df = pd.read_csv(caminho, sep=";")
+        return df
+    except FileNotFoundError:
+        st.error(f"Arquivo de rubricas não encontrado em '{caminho}'.")
+        st.stop()
 
 # === FUNÇÕES AUXILIARES DE LÓGICA E FORMATAÇÃO ===
 
-def encontrar_rubrica(df_rubricas: pd.DataFrame, pontuacao: int, dimensao: str, subdimensao: str) -> Tuple[Optional[int], Optional[str], Optional[int]]:
-    """Encontra a rubrica, nome e faixa de nível com base na pontuação do usuário.
+def exibir_cabecalho():
+    """Exibe o cabeçalho padronizado da página."""
+    st.title("Plataforma de Apoio à Gestão Pedagógica")
+    st.markdown("Ferramenta para geração de devolutivas e recomendação de materiais.")
+    st.markdown("---")
 
-    Args:
-        df_rubricas (pd.DataFrame): DataFrame contendo as regras das rubricas.
-        pontuacao (int): A pontuação do usuário.
-        dimensao (str): A dimensão avaliada.
-        subdimensao (str): A subdimensão avaliada.
-
-    Returns:
-        Tuple[Optional[int], Optional[str], Optional[int]]: Uma tupla contendo o número da rubrica,
-        o nome da rubrica e o tipo da faixa. Retorna (None, None, None) se não encontrar.
-    """
+def encontrar_rubrica(df_rubricas: pd.DataFrame, pontuacao: int, dimensao: str, subdimensao: str) -> Tuple[Optional[int], Optional[str], Optional[str]]:
+    """Encontra a rubrica, nome e faixa de nível com base na pontuação do usuário."""
     candidatos = df_rubricas[
         (df_rubricas['dimensao'] == dimensao) &
         (df_rubricas['subdimensao'] == subdimensao) &
         (df_rubricas['faixa_total_min'] <= pontuacao) &
         (df_rubricas['faixa_total_max'] >= pontuacao)
     ]
-    if candidatos.empty:
-        return None, None, None
+    if candidatos.empty: return None, None, None
     
-    rubrica_numero = candidatos.iloc[0]['rubrica_numero']
+    rubrica_numero = int(candidatos.iloc[0]['rubrica_numero'])
     rubrica_nome = candidatos.iloc[0]['rubrica_nome']
     
     faixa = candidatos[
         (candidatos['subfaixa_min'] <= pontuacao) &
         (candidatos['subfaixa_max'] >= pontuacao)
     ]
-    if faixa.empty:
-        return rubrica_numero, rubrica_nome, None
+    if faixa.empty: return rubrica_numero, rubrica_nome, None
         
     tipo_faixa = faixa.iloc[0]['tipo_faixa']
+    
     return rubrica_numero, rubrica_nome, tipo_faixa
 
-
+# CORREÇÃO: Esta função foi movida para ANTES da função que a chama.
 def formatar_necessidades_formativas(texto: Optional[str]) -> str:
-    """Formata o texto de necessidades formativas em uma lista Markdown.
-
-    Args:
-        texto (Optional[str]): O texto bruto vindo do CSV.
-
-    Returns:
-        str: O texto formatado como uma lista de itens em Markdown.
-    """
+    """Formata o texto de necessidades formativas em uma lista Markdown."""
     if texto is None or not isinstance(texto, str) or texto.strip() == "" or pd.isna(texto):
         return "Sem necessidades formativas informadas."
     
@@ -122,21 +108,8 @@ def formatar_necessidades_formativas(texto: Optional[str]) -> str:
             markdown_final += f"  - {detalhe}\n"
     return markdown_final.strip()
 
-
 def gerar_texto_devolutiva_markdown(df_devolutivas: pd.DataFrame, df_rubricas: pd.DataFrame, pontuacao: int, dimensao: str, subdimensao: str) -> Optional[str]:
-    """Gera o card completo da devolutiva em formato Markdown para exibição.
-
-    Args:
-        df_devolutivas (pd.DataFrame): DataFrame com os textos das devolutivas.
-        df_rubricas (pd.DataFrame): DataFrame com as regras das rubricas.
-        pontuacao (int): Pontuação do usuário.
-        dimensao (str): Dimensão avaliada.
-        subdimensao (str): Subdimensão avaliada.
-
-    Returns:
-        Optional[str]: Uma string formatada em Markdown com a devolutiva completa,
-                       ou None se não for encontrada.
-    """
+    """Gera o card completo da devolutiva em formato Markdown para exibição."""
     rubrica_numero, rubrica_nome, tipo_faixa = encontrar_rubrica(df_rubricas, pontuacao, dimensao, subdimensao)
     if rubrica_numero is None or tipo_faixa is None:
         st.warning(f"Não foi encontrada uma rubrica ou faixa de nível correspondente para a pontuação {pontuacao} na subdimensão '{subdimensao}'.")
@@ -182,21 +155,8 @@ def gerar_texto_devolutiva_markdown(df_devolutivas: pd.DataFrame, df_rubricas: p
 {formatar_necessidades_formativas(item['Necessidades formativas'])}
 """.strip()
 
-
 def gerar_texto_devolutiva_rico(df_devolutivas: pd.DataFrame, df_rubricas: pd.DataFrame, pontuacao: int, dimensao: str, subdimensao: str, modelo_selecionado: str) -> Optional[str]:
-    """Gera o texto enriquecido da devolutiva para ser usado como query na busca vetorial.
-
-    Args:
-        df_devolutivas (pd.DataFrame): DataFrame com os textos das devolutivas.
-        df_rubricas (pd.DataFrame): DataFrame com as regras das rubricas.
-        pontuacao (int): Pontuação do usuário.
-        dimensao (str): Dimensão avaliada.
-        subdimensao (str): Subdimensão avaliada.
-        modelo_selecionado (str): Nome do modelo de busca ativo, para decidir se enriquece a query.
-
-    Returns:
-        Optional[str]: O texto-query para a busca, ou None se não for encontrada.
-    """
+    """Gera o texto enriquecido da devolutiva para ser usado como query na busca vetorial."""
     rubrica_numero, rubrica_nome, tipo_faixa = encontrar_rubrica(df_rubricas, pontuacao, dimensao, subdimensao)
     if rubrica_numero is None or tipo_faixa is None: return None
     
@@ -210,39 +170,19 @@ def gerar_texto_devolutiva_rico(df_devolutivas: pd.DataFrame, df_rubricas: pd.Da
     
     item = devolutiva.iloc[0]
     
-    # A query só é enriquecida para o modelo avançado, que foi treinado para entender esse contexto
     if modelo_selecionado == "Modelo Avançado (v2, Re-ranking)":
         contexto_query = f"Perfil do usuário: gestor no Nível {tipo_faixa} da Rubrica {rubrica_numero} - {rubrica_nome}. A necessidade de aprendizagem é a seguinte:"
         return f"{contexto_query}\n\n{item['Necessidades formativas']}".strip()
     else:
-        # Para os outros modelos, uma query mais simples é mais eficaz
         return f"Necessidades formativas:\n{item['Necessidades formativas']}".strip()
 
-
 def gerar_embedding_para_rag(modelo_st: SentenceTransformer, texto: str) -> np.ndarray:
-    """Gera e normaliza um embedding para um dado texto.
-
-    Args:
-        modelo_st (SentenceTransformer): O modelo de embedding carregado.
-        texto (str): O texto a ser vetorizado.
-
-    Returns:
-        np.ndarray: O vetor de embedding normalizado.
-    """
+    """Gera e normaliza um embedding para um dado texto."""
     embedding = modelo_st.encode([texto])
     return embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
 
-
 def gerar_card_material(row: Dict[str, Any], i: int) -> str:
-    """Gera o código Markdown para exibir um card de material recomendado.
-
-    Args:
-        row (Dict[str, Any]): Um dicionário contendo os dados de uma linha do DataFrame de resultados.
-        i (int): O índice do material na lista (para a numeração).
-
-    Returns:
-        str: A string Markdown formatada para o card.
-    """
+    """Gera o código Markdown para exibir um card de material recomendado."""
     titulo = row.get("Título", "Sem título")
     resumo = re.sub(r"<[^>]+>", "", str(row.get("Resumo", "Sem resumo disponível")).strip())
     suporte = row.get("Suporte", "Não informado")
@@ -272,16 +212,7 @@ def gerar_card_material(row: Dict[str, Any], i: int) -> str:
 """
 
 def obter_pontuacao_maxima(df_rubricas: pd.DataFrame, dimensao: str, subdimensao: str) -> int:
-    """Calcula a pontuação máxima para uma dada dimensão e subdimensão.
-
-    Args:
-        df_rubricas (pd.DataFrame): DataFrame com as regras das rubricas.
-        dimensao (str): A dimensão avaliada.
-        subdimensao (str): A subdimensão avaliada.
-
-    Returns:
-        int: O valor da pontuação máxima, ou 51 como padrão se não for encontrado.
-    """
+    """Calcula a pontuação máxima para uma dada dimensão e subdimensão."""
     rubricas_filtradas = df_rubricas[
         (df_rubricas['dimensao'] == dimensao) &
         (df_rubricas['subdimensao'] == subdimensao)
@@ -291,18 +222,7 @@ def obter_pontuacao_maxima(df_rubricas: pd.DataFrame, dimensao: str, subdimensao
     return int(rubricas_filtradas['faixa_total_max'].max())
 
 def sintetizar_devolutiva_com_ia(client: OpenAI, modelo_gpt: str, prompt: str, max_tokens: int) -> Optional[str]:
-    """
-    Chama a API da OpenAI para sintetizar um texto de devolutiva.
-
-    Args:
-        client (OpenAI): O cliente da API OpenAI instanciado.
-        modelo_gpt (str): O nome do modelo GPT a ser usado (ex: 'gpt-4o-mini').
-        prompt (str): O prompt completo a ser enviado para a IA.
-        max_tokens (int): O número máximo de tokens para a resposta.
-
-    Returns:
-        Optional[str]: O texto de resposta da IA, ou None em caso de erro.
-    """
+    """Chama a API da OpenAI para sintetizar um texto de devolutiva."""
     try:
         response = client.chat.completions.create(
             model=modelo_gpt,

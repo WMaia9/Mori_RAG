@@ -1,0 +1,35 @@
+# Arquivo .gitignore
+
+# Ambientes Virtuais
+/venv/
+/env/
+/.env
+
+# Arquivos de Cache e compilados do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos de IDEs e Editores
+.vscode/
+.idea/
+*.swp
+
+# Arquivos de Cache e Logs do Streamlit
+.streamlit/secrets.toml
+
+# Notebooks e seus checkpoints
+.ipynb_checkpoints/
+
+# Dependências do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Arquivos de dados grandes ou sensíveis
+# É uma boa prática não versionar arquivos de dados muito grandes.
+# Descomente as linhas abaixo se seus arquivos forem maiores que 100MB.
+# data_source/*.xlsx
+# data_source/*.csv
+
+# Modelos e artefatos gerados
