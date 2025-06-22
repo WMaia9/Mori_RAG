@@ -1,0 +1,14 @@
+# .streamlit/config.toml
+
+[server]
+# Desativa o "vigia" de arquivos do Streamlit.
+# Esta configuração é necessária para evitar um erro de incompatibilidade com a 
+# biblioteca PyTorch, que é uma dependência do sentence-transformers.
+# O efeito prático durante o desenvolvimento é que o app não recarregará
+# sozinho quando você salvar um arquivo .py; você precisará recarregar 
+# a página manualmente no navegador.
+fileWatcherType = "none"
+
+[client]
+# Desativa o botão "Deploy" que aparece no canto superior direito. Opcional.
+showDeployButton = false
