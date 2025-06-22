@@ -11,36 +11,36 @@ Este projeto é uma aplicação web desenvolvida com Streamlit, projetada para a
 
 ## 📂 Estrutura do Projeto
 
-O projeto é organizado com uma estrutura modular para separar a preparação dos dados da aplicação final, facilitando a manutenção e a escalabilidade. 📂 PROJETO_MORI/
-│
-├── 📜 .gitignore
-├── 📜 README.md
-└── 📜 requirements.txt
-│
-├── 📂 notebooks/
-│   └── 📄 1_Geracao_Embeddings.ipynb
-│
-├── 📂 data_source/
-│   └── 📄 Base_de_ODAS_1606.xlsx
-│
-└── 📂 streamlit_app/
-│
-├── 📂 .streamlit/ & 📂 assets/
-├── 📂 data/
-│   └── 📄 devolutivas.csv, rubricas.csv
-├── 📂 models/
-│   └── 📄 *.faiss, *.pkl
-├── 📂 pages/
-│   ├── 🐍 1_Recomendacao_Individual.py
-│   └── 🐍 2_Devolutiva_Geral.py
-│
-├── 📂 src/
-│   ├── 📄 init.py
-│   ├── 🐍 recommendation.py
-│   └── 🐍 utils.py
-│
-└── 🐍 Home.py
+O projeto é organizado com a seguinte estrutura de pastas e arquivos para garantir a separação de responsabilidades e facilitar a manutenção:
 
+-   `PROJETO_MORI/` (Pasta Raiz do Projeto)
+    -   `.gitignore`
+    -   `README.md`
+    -   `requirements.txt`
+    -   **`data_source/`**: Contém os dados brutos e originais para o processamento.
+        -   `Base_de_ODAS_1606.xlsx`
+    -   **`notebooks/`**: Contém os Jupyter Notebooks para exploração e geração dos modelos.
+        -   `1_Geracao_Embeddings.ipynb`
+    -   **`streamlit_app/`**: A pasta principal da aplicação web.
+        -   `.streamlit/`
+            -   `config.toml`
+        -   `assets/`
+            -   *(logos e imagens)*
+        -   `data/`
+            -   `devolutivas.csv`
+            -   `rubricas.csv`
+        -   `models/`
+            -   `odas_index_1606_v2.faiss`
+            -   `metadados_odas_1606_v2.pkl`
+            -   *(e outras versões...)*
+        -   `pages/`
+            -   `1_Recomendacao_Individual.py`
+            -   `2_Devolutiva_Geral.py`
+        -   `src/`
+            -   `__init__.py`
+            -   `recommendation.py`
+            -   `utils.py`
+        -   `Home.py`
 
 ## 🛠️ Tecnologias Utilizadas
 
