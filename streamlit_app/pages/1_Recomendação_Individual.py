@@ -5,16 +5,10 @@ import pandas as pd
 import sys
 from pathlib import Path
 
-# --- BLOCO DE CÓDIGO PARA CORREÇÃO DE CAMINHO ---
-# Adiciona a pasta raiz do app (streamlit_app) ao sys.path
-# Isso garante que os módulos na pasta 'src' sejam encontrados.
-# Este é um padrão comum e robusto para apps Streamlit multi-página.
 app_root = str(Path(__file__).parent.parent)
 if app_root not in sys.path:
     sys.path.append(app_root)
-# ------------------------------------------------
 
-# Agora as importações devem funcionar sem erro
 from src.utils import *
 from src.recommendation import get_recommendations
 
